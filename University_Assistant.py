@@ -8,6 +8,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # Gemini API
 API_KEY = "Your api"
 GEMINI_EMBED_URL = f"https://generativelanguage.googleapis.com/v1beta/models/embedding-001:embedText?key={API_KEY}"
+GEMINI_CHAT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={API_KEY}"
+
+template = """
+You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
+Question: {question} 
+Context: {context} 
+Answer:
+"""
 
 pdfs_directory = 'chat-with-pdf/pdfs/'
 os.makedirs(pdfs_directory, exist_ok=True)
@@ -24,6 +32,28 @@ def get_gemini_embedding(text):
         return np.array(result["embedding"]["value"])
     except:
         return None
+
+def answer_question_with_gemini(question, context):
+    prompt = template.format(question=question, context=context)
+
+    headers = {"Content-Type": "application/json"}
+    body = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+
+    response = requests.post(GEMINI_CHAT_URL, headers=headers, json=body)
+    result = response.json()
+
+    try:
+        return result["candidates"][0]["content"]["parts"][0]["text"]
+    except:
+        return "Sorry, I couldn't generate a response."
 
 def upload_pdf(file):
     with open(pdfs_directory + file.name, "wb") as f:
