@@ -1,7 +1,10 @@
+import streamlit as st
 import os
 import requests
+import json
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+
 from langchain_community.document_loaders import PDFPlumberLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -20,8 +23,10 @@ Answer:
 pdfs_directory = 'chat-with-pdf/pdfs/'
 os.makedirs(pdfs_directory, exist_ok=True)
 
-documents_store = []
+# In-memory store for vectors
+documents_store = []  # each item: {'content': ..., 'embedding': ...}
 
+# ---- Gemini Embedding ----
 def get_gemini_embedding(text):
     headers = {"Content-Type": "application/json"}
     body = {"text": text}
@@ -33,6 +38,7 @@ def get_gemini_embedding(text):
     except:
         return None
 
+# ---- Gemini Answer Generator ----
 def answer_question_with_gemini(question, context):
     prompt = template.format(question=question, context=context)
 
@@ -55,6 +61,7 @@ def answer_question_with_gemini(question, context):
     except:
         return "Sorry, I couldn't generate a response."
 
+# ---- Text Handling ----
 def upload_pdf(file):
     with open(pdfs_directory + file.name, "wb") as f:
         f.write(file.getbuffer())
@@ -71,6 +78,7 @@ def split_text(documents):
     )
     return text_splitter.split_documents(documents)
 
+# ---- Indexing ----
 def index_documents(chunks):
     for chunk in chunks:
         text = chunk.page_content
@@ -78,6 +86,7 @@ def index_documents(chunks):
         if embedding is not None:
             documents_store.append({"content": text, "embedding": embedding})
 
+# ---- Retrieval ----
 def retrieve_relevant_docs(query, top_k=3):
     query_embedding = get_gemini_embedding(query)
     if query_embedding is None or not documents_store:
@@ -90,3 +99,22 @@ def retrieve_relevant_docs(query, top_k=3):
 
     similarities.sort(reverse=True)
     return [doc for _, doc in similarities[:top_k]]
+
+# ---- Streamlit App ----
+uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+
+if uploaded_file:
+    upload_pdf(uploaded_file)
+    docs = load_pdf(pdfs_directory + uploaded_file.name)
+    chunks = split_text(docs)
+    index_documents(chunks)
+    st.success("PDF processed and indexed.")
+
+    question = st.chat_input("Ask a question about the PDF")
+    if question:
+        st.chat_message("user").write(question)
+        relevant_contexts = retrieve_relevant_docs(question)
+        context = "\n\n".join(relevant_contexts)
+        answer = answer_question_with_gemini(question, context)
+
+        st.chat_message("assistant").write(answer)
