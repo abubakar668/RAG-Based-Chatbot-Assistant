@@ -103,8 +103,3 @@ The app will open at http://localhost:8501
 - Add voice support so users can speak their questions.
 - Make a mobile app for easy access on phones.
 - Add Urdu language support.
-
-
-## Author
-
-- Muhammad Abubakar
